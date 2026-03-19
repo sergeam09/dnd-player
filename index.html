@@ -856,6 +856,60 @@ input[type="number"] { text-align: center; }
 }
 .toast.show { transform: translateY(0); opacity: 1; }
 
+.monster-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--bg4);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+.monster-result-item:hover { background: var(--bg3); }
+.monster-result-name { font-weight: 600; font-size: 0.85rem; }
+.monster-result-meta { font-size: 0.72rem; color: var(--text3); text-align: right; }
+
+.dm-ref-title {
+  font-family: var(--font-title);
+  font-size: 0.82rem;
+  color: var(--gold2);
+  letter-spacing: 1px;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dm-ref-title:hover { color: var(--gold); }
+.dm-ref-body { margin-top: 8px; }
+.dm-ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+.dm-ref-table th {
+  text-align: left;
+  color: var(--gold2);
+  font-size: 0.72rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border2);
+}
+.dm-ref-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--bg4);
+  color: var(--text2);
+  vertical-align: top;
+}
+.dm-ref-table td:first-child {
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+  padding-right: 12px;
+  min-width: 120px;
+}
+
 /* ============================================================
    ROSTER & GENERATOR
 ============================================================ */
@@ -4000,6 +4054,8 @@ window.addEventListener('DOMContentLoaded', function() {
   buildSaveRollButtons();
   setupTabs();
   loadLogo();
+  loadDiceHistory();
+  initQuickNotes();
   buildOriginSelects();
   initXP();
   renderConcentration();
@@ -4635,6 +4691,7 @@ function showDiceResult(label, total, detail) {
     + '<div class="dice-roll-detail">' + detail + '</div>';
   diceHistory.unshift({ label: label, total: total, detail: detail });
   if (diceHistory.length > 20) diceHistory.pop();
+  saveDiceHistory();
   renderDiceHistory();
 }
 
@@ -5076,6 +5133,7 @@ window.addEventListener('load', function() {
 <script src="subclasses-data.js"></script>
 <script src="magic-items-data.js"></script>
 <script src="spells-data.js"></script>
+<script src="monsters-data.js"></script>
 
 </body>
 </html>
