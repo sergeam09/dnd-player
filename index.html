@@ -4767,6 +4767,23 @@ function printCharSheet() {
 }
 
 // ============================================================
+// HISTORIAL DE TIRADAS PERSISTENTE
+// ============================================================
+function saveDiceHistory() {
+  try { localStorage.setItem('dnd5e_dice_history', JSON.stringify(diceHistory)); } catch(e) {}
+}
+
+function loadDiceHistory() {
+  try {
+    var saved = localStorage.getItem('dnd5e_dice_history');
+    if (saved) {
+      diceHistory = JSON.parse(saved);
+      renderDiceHistory();
+    }
+  } catch(e) {}
+}
+
+// ============================================================
 // RETRATO DEL PERSONAJE
 // ============================================================
 function triggerPortraitUpload() {
@@ -6826,7 +6843,6 @@ window.addEventListener('load', function() {
 <script src="subclasses-data.js"></script>
 <script src="magic-items-data.js"></script>
 <script src="spells-data.js"></script>
-<script src="monsters-data.js"></script>
 
 </body>
 </html>
