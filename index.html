@@ -4783,6 +4783,422 @@ function loadDiceHistory() {
   } catch(e) {}
 }
 
+
+// ============================================================
+// FUNCIONES COMPARTIDAS (player + DM)
+// ============================================================
+function initQuickNotes() {
+  try {
+    var saved = localStorage.getItem('dnd5e_quicknotes');
+    quickNotes = saved ? JSON.parse(saved) : [];
+  } catch(e) { quickNotes = []; }
+  renderQuickNotes();
+  // Show today's date
+  var dateEl = document.getElementById('quicknote_date');
+  if (dateEl) {
+    var d = new Date();
+    dateEl.textContent = d.toLocaleDateString('es-MX', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  }
+}
+
+
+function addQuickNote() {
+  var input = document.getElementById('quicknote_input');
+  if (!input || !input.value.trim()) return;
+  var d = new Date();
+  var ts = d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+  quickNotes.unshift({ text: input.value.trim(), time: ts });
+  if (quickNotes.length > 50) quickNotes.pop();
+  input.value = '';
+  try { localStorage.setItem('dnd5e_quicknotes', JSON.stringify(quickNotes)); } catch(e) {}
+  renderQuickNotes();
+}
+
+
+function renderQuickNotes() {
+  var list = document.getElementById('quicknote_list');
+  if (!list) return;
+  if (!quickNotes.length) { list.innerHTML = '<p style="color:var(--text3);font-size:0.8rem;text-align:center">Sin notas aún</p>'; return; }
+  list.innerHTML = quickNotes.map(function(n, i) {
+    return '<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--bg4)">'
+      + '<span style="font-size:0.68rem;color:var(--text3);white-space:nowrap;padding-top:2px">' + n.time + '</span>'
+      + '<span style="flex:1;font-size:0.82rem">' + n.text + '</span>'
+      + '<button class="btn-remove" onclick="removeQuickNote(' + i + ')">✕</button></div>';
+  }).join('');
+}
+
+
+function openGlobalSearch() {
+  document.getElementById('global_search_modal').style.display = 'block';
+  setTimeout(function(){ document.getElementById('global_search_input').focus(); }, 100);
+}
+
+
+function closeGlobalSearch(e) {
+  if (!e || e.target === document.getElementById('global_search_modal')) {
+    document.getElementById('global_search_modal').style.display = 'none';
+    document.getElementById('global_search_input').value = '';
+    document.getElementById('global_search_results').innerHTML =
+      '<p style="color:var(--text3);text-align:center;padding:20px;font-size:0.85rem">Escribe para buscar en hechizos, monstruos y objetos mágicos</p>';
+  }
+}
+
+
+function runGlobalSearch() {
+  var q = (document.getElementById('global_search_input').value || '').toLowerCase().trim();
+  var results = document.getElementById('global_search_results');
+  if (q.length < 2) {
+    results.innerHTML = '<p style="color:var(--text3);text-align:center;padding:20px;font-size:0.85rem">Escribe al menos 2 caracteres</p>';
+    return;
+  }
+  var html = '';
+  var total = 0;
+
+  // Hechizos
+  if ((globalSearchFilter === 'all' || globalSearchFilter === 'spells') && typeof SPELLS_DATA !== 'undefined') {
+    var spells = SPELLS_DATA.filter(function(s){
+      return s.name.toLowerCase().indexOf(q) > -1 || (s.school && s.school.toLowerCase().indexOf(q) > -1);
+    }).slice(0, 8);
+    if (spells.length) {
+      html += '<div class="gs-section-title">✨ Hechizos</div>';
+      html += spells.map(function(s) {
+        var lvl = s.level === 0 ? 'Truco' : 'Nv.' + s.level;
+        return '<div class="gs-result-item" onclick="gsSelectSpell(' + JSON.stringify(s).replace(/"/g,'&quot;') + ')">'
+          + '<div class="gs-result-name">' + s.name + '</div>'
+          + '<div class="gs-result-meta">' + lvl + ' · ' + (s.school||'') + '</div></div>';
+      }).join('');
+      total += spells.length;
+    }
+  }
+
+  // Monstruos
+  if ((globalSearchFilter === 'all' || globalSearchFilter === 'monsters') && typeof MONSTERS_DATA !== 'undefined') {
+    var monsters = MONSTERS_DATA.filter(function(m){
+      return m.name.toLowerCase().indexOf(q) > -1 || (m.type && m.type.toLowerCase().indexOf(q) > -1);
+    }).slice(0, 8);
+    if (monsters.length) {
+      html += '<div class="gs-section-title">🐉 Monstruos</div>';
+      html += monsters.map(function(m) {
+        var ndColor = ndToColor(m.nd);
+        return '<div class="gs-result-item" onclick="gsSelectMonster(' + JSON.stringify(m).replace(/"/g,'&quot;') + ')">'
+          + '<div class="gs-result-name">' + m.name + '</div>'
+          + '<div class="gs-result-meta"><span style="color:' + ndColor + ';font-weight:bold">ND ' + m.nd + '</span> · ' + m.type + ' · CA ' + m.ac + '</div></div>';
+      }).join('');
+      total += monsters.length;
+    }
+  }
+
+  // Objetos mágicos
+  if ((globalSearchFilter === 'all' || globalSearchFilter === 'items') && typeof MAGIC_ITEMS_DATA !== 'undefined') {
+    var magicItems = MAGIC_ITEMS_DATA.filter(function(i){
+      return i.name.toLowerCase().indexOf(q) > -1 || (i.type && i.type.toLowerCase().indexOf(q) > -1);
+    }).slice(0, 8);
+    if (magicItems.length) {
+      var rarityColors = {'Común':'#95a5a6','Poco común':'#27ae60','Raro':'#2980b9','Muy raro':'#8e44ad','Legendario':'#f39c12','Artefacto':'#e74c3c'};
+      html += '<div class="gs-section-title">💎 Objetos mágicos</div>';
+      html += magicItems.map(function(it) {
+        var rc = rarityColors[it.rarity] || 'var(--text3)';
+        return '<div class="gs-result-item" onclick="gsSelectItem(' + JSON.stringify(it).replace(/"/g,'&quot;') + ')">'
+          + '<div class="gs-result-name">' + it.name + '</div>'
+          + '<div class="gs-result-meta"><span style="color:' + rc + '">' + (it.rarity||'') + '</span> · ' + (it.type||'') + '</div></div>';
+      }).join('');
+      total += magicItems.length;
+    }
+  }
+
+  results.innerHTML = total ? html
+    : '<p style="color:var(--text3);text-align:center;padding:20px;font-size:0.85rem">Sin resultados para "' + q + '"</p>';
+}
+
+
+function setGlobalFilter(f) {
+  globalSearchFilter = f;
+  document.querySelectorAll('.gs-filter').forEach(function(b){
+    b.classList.toggle('active', b.dataset.gf === f);
+  });
+  runGlobalSearch();
+}
+
+
+function gsSelectSpell(spell) {
+  closeGlobalSearch();
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelector('[data-tab="magic"]').classList.add('active');
+  document.getElementById('tab-magic').classList.add('active');
+  selectSpell(spell);
+  setTimeout(function(){
+    var card = document.getElementById('spell_detail_card');
+    if (card) card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }, 200);
+}
+
+
+function gsSelectMonster(monster) {
+  selectedMonster = monster;
+  closeGlobalSearch();
+  var dmTab = document.getElementById('tab-dm');
+  if (dmTab && dmTab.classList.contains('active')) {
+    selectMonster(monster);
+  } else {
+    document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+    var dmBtn = document.querySelector('[data-tab="dm"]');
+    if (dmBtn && dmTab) { dmBtn.classList.add('active'); dmTab.classList.add('active'); }
+    setTimeout(function(){ selectMonster(monster); }, 200);
+  }
+}
+
+
+function gsSelectItem(item) {
+  closeGlobalSearch();
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelector('[data-tab="inventory"]').classList.add('active');
+  document.getElementById('tab-inventory').classList.add('active');
+  var searchEl = document.getElementById('magic_item_search');
+  if (searchEl) {
+    searchEl.value = item.name;
+    filterMagicItems();
+    setTimeout(function(){ searchEl.scrollIntoView({ behavior:'smooth', block:'center' }); }, 200);
+  }
+}
+
+
+function generateLoot() {
+  var tier   = parseInt(document.getElementById('loot_nd_select').value);
+  var type   = document.getElementById('loot_type_select').value;
+  var table  = LOOT_TABLES[type][tier];
+
+  // Roll coins
+  var coins = {};
+  var coinNames = { cp:'PC', sp:'PP', ep:'PE', gp:'PO', pp:'PL' };
+  var totalGold = 0;
+
+  ['cp','sp','ep','gp','pp'].forEach(function(coin) {
+    var range = table[coin];
+    if (range[0] > 0 || range[1] > 0) {
+      var mult = type === 'hoard' ? 100 : 1;
+      var val  = rollDice(range[0], range[1]) * mult;
+      if (val > 0) {
+        coins[coin] = val;
+        // Convert to gold equivalent
+        var rates = { cp:0.01, sp:0.1, ep:0.5, gp:1, pp:10 };
+        totalGold += val * rates[coin];
+      }
+    }
+  });
+
+  // Roll items
+  var items = [];
+  var numItems = type === 'hoard' ? rollDice(1, 4) : (Math.random() < 0.3 ? 1 : 0);
+  var pool = table.items.slice();
+
+  // Add magic item from table
+  var tableLetter = null;
+  pool.forEach(function(item) {
+    var m = item.match(/tabla ([ABC])/);
+    if (m) tableLetter = m[1];
+  });
+
+  for (var i = 0; i < numItems && pool.length; i++) {
+    var idx  = Math.floor(Math.random() * pool.length);
+    var item = pool[idx];
+    pool.splice(idx, 1);
+
+    // Replace "tabla X" with actual magic item
+    if (item.match(/tabla ([ABC])/)) {
+      var letter = item.match(/tabla ([ABC])/)[1];
+      var magicPool = MAGIC_ITEM_TABLES[letter];
+      item = magicPool[Math.floor(Math.random() * magicPool.length)];
+    }
+    // Roll quantity if has xNdM
+    item = item.replace(/x(\d+)d(\d+)/, function(m, c, s) {
+      return 'x' + rollDice(parseInt(c), parseInt(s));
+    });
+    // Roll spell level if has nivel 1dX
+    item = item.replace(/nivel (\d+)d(\d+)([+-]\d+)?/, function(m, c, s, mod) {
+      var lvl = rollDice(parseInt(c), parseInt(s)) + (parseInt(mod)||0);
+      return 'nivel ' + Math.min(9, Math.max(1, lvl));
+    });
+    items.push(item);
+  }
+
+  // Store for later use
+  lastLoot = { coins: coins, items: items, totalGold: Math.round(totalGold) };
+
+  // Display
+  var coinsEl = document.getElementById('loot_coins');
+  var itemsEl = document.getElementById('loot_items');
+  var result  = document.getElementById('loot_result');
+
+  var coinStr = Object.keys(coins).map(function(c) {
+    return '<span style="color:var(--gold2);font-family:var(--font-title);font-size:1rem">' + coins[c].toLocaleString() + '</span> ' + coinNames[c];
+  }).join('  ·  ');
+
+  coinsEl.innerHTML = coinStr || '<span style="color:var(--text3)">Sin monedas</span>';
+  coinsEl.innerHTML += '<span style="color:var(--text3);font-size:0.72rem;margin-left:8px">(≈' + lastLoot.totalGold.toLocaleString() + ' po total)</span>';
+
+  itemsEl.innerHTML = items.length
+    ? '<div style="margin-top:4px;font-size:0.72rem;color:var(--gold2);letter-spacing:1px;margin-bottom:4px">OBJETOS</div>'
+      + items.map(function(it) { return '<div style="padding:3px 0;border-bottom:1px solid var(--bg4)">✦ ' + it + '</div>'; }).join('')
+    : '<div style="color:var(--text3);font-style:italic;font-size:0.82rem">Sin objetos adicionales</div>';
+
+  result.style.display = 'block';
+}
+
+
+function rollDice(count, sides) {
+  var total = 0;
+  for (var i = 0; i < count; i++) {
+    total += Math.ceil(Math.random() * sides);
+  }
+  return total;
+}
+
+
+function addLootToInventory() {
+  if (!lastLoot) return;
+  if (!char.inventory) char.inventory = [];
+
+  // Add coins to coin fields
+  var coinFields = { cp:'coin_cp', sp:'coin_sp', ep:'coin_ep', gp:'coin_gp', pp:'coin_pp' };
+  Object.keys(lastLoot.coins).forEach(function(c) {
+    var el = document.getElementById(coinFields[c]);
+    if (el) el.value = (parseInt(el.value)||0) + lastLoot.coins[c];
+  });
+
+  // Add items to inventory
+  lastLoot.items.forEach(function(item) {
+    char.inventory.push({ name: item, qty: 1, weight: 0, value: 0 });
+  });
+
+  renderInventory();
+  saveCharacter();
+  showToast('🎒 Tesoro añadido al inventario');
+}
+
+
+function addLootToJournal() {
+  if (!lastLoot) return;
+  if (!char.journal_loot) char.journal_loot = [];
+
+  // Add coins as one entry
+  var coinNames = { cp:'PC', sp:'PP', ep:'PE', gp:'PO', pp:'PL' };
+  var coinStr = Object.keys(lastLoot.coins).map(function(c){
+    return lastLoot.coins[c] + ' ' + coinNames[c];
+  }).join(', ');
+
+  if (coinStr) {
+    char.journal_loot.unshift({
+      name: 'Monedas de encuentro: ' + coinStr,
+      type: 'monedas', value: lastLoot.totalGold,
+      session: 'Generado', id: Date.now()
+    });
+  }
+
+  lastLoot.items.forEach(function(item, i) {
+    char.journal_loot.unshift({
+      name: item, type: 'objeto', value: 0,
+      session: 'Generado', id: Date.now() + i + 1
+    });
+  });
+
+  saveCharacter();
+  showToast('💰 Tesoro añadido al diario de campaña');
+  // Switch to journal loot tab
+  switchJournalTab('journal_loot');
+  renderJournalLoot();
+}
+
+
+function rollAllInitiatives() {
+  if (!dmData.encounter.length) {
+    showToast('No hay criaturas en el tracker');
+    return;
+  }
+  var rolled = 0;
+  dmData.encounter.forEach(function(c) {
+    // Roll d20 + DEX mod from stored monster data if available
+    var dexMod = 0;
+    if (c.monsterData && c.monsterData.dex) {
+      dexMod = Math.floor((c.monsterData.dex - 10) / 2);
+    }
+    c.init = Math.ceil(Math.random() * 20) + dexMod;
+    rolled++;
+  });
+  dmData.encounter.sort(function(a,b){ return b.init - a.init; });
+  renderEncounter();
+  saveDMData();
+  showToast('🎲 Iniciativas tiradas para ' + rolled + ' criaturas');
+}
+
+
+function togglePlayerInitiatives() {
+  var panel = document.getElementById('player_initiatives');
+  if (!panel) return;
+  var visible = panel.style.display !== 'none';
+  if (visible) {
+    panel.style.display = 'none';
+    return;
+  }
+  // Build player inputs from roster
+  var roster = getRoster();
+  var inputs = document.getElementById('player_init_inputs');
+  if (!inputs) return;
+  if (!roster.length) {
+    inputs.innerHTML = '<span style="color:var(--text3);font-size:0.8rem">No hay personajes en el roster</span>';
+  } else {
+    inputs.innerHTML = roster.map(function(r) {
+      return '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">'
+        + '<span style="font-size:0.68rem;color:var(--text2);max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (r.name || r.cls) + '</span>'
+        + '<input type="number" id="pinit_' + r.id + '" placeholder="Init" data-name="' + (r.name || r.cls) + '" data-id="' + r.id + '" style="width:56px;text-align:center">'
+        + '<button onclick="rollPlayerInit(\'' + r.id + '\')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:0.75rem;padding:0">🎲</button>'
+        + '</div>';
+    }).join('');
+  }
+  panel.style.display = 'block';
+}
+
+
+function rollPlayerInit(id) {
+  var el = document.getElementById('pinit_' + id);
+  if (el) el.value = Math.ceil(Math.random() * 20);
+}
+
+
+function addPlayersToTracker() {
+  var inputs = document.querySelectorAll('#player_init_inputs input[type=number]');
+  var added  = 0;
+  inputs.forEach(function(inp) {
+    var init = parseInt(inp.value);
+    var name = inp.dataset.name;
+    if (!name || isNaN(init)) return;
+    // Avoid duplicates
+    var exists = dmData.encounter.find(function(c){ return c.name === name && c.isPlayer; });
+    if (exists) { exists.init = init; }
+    else {
+      dmData.encounter.push({
+        id: Date.now() + added,
+        name: name,
+        hp: 0, hpMax: 0, ac: 0,
+        init: init,
+        isPlayer: true,
+        dead: false, active: false
+      });
+    }
+    added++;
+  });
+  if (added) {
+    dmData.encounter.sort(function(a,b){ return b.init - a.init; });
+    renderEncounter();
+    saveDMData();
+    showToast('👥 ' + added + ' jugadores añadidos al tracker');
+    document.getElementById('player_initiatives').style.display = 'none';
+  }
+}
+
+
 // ============================================================
 // RETRATO DEL PERSONAJE
 // ============================================================
